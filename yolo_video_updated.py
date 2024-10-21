@@ -394,6 +394,41 @@ def plot_number_of_detections_per_frame(df_original, df_corrupted,
     print(f"Number of detections per frame plot saved as '{output_path}'")
 
 
+
+def calculate_weighted_confidence(df_original, df_corrupted):
+    # Step 1: Get the total number of detections per frame in the original video
+    df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index()
+    df_original_detections.columns = ['frame', 'total_detections']
+
+    # Step 2: Get the average confidence score for each frame in the corrupted video
+    df_corrupted_avg_conf = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
+    df_corrupted_avg_conf.columns = ['frame', 'avg_confidence']
+
+    # Step 3: Merge the two dataframes on the 'frame' column
+    df_combined = pd.merge(df_original_detections, df_corrupted_avg_conf, on='frame')
+
+    # Step 4: Calculate the weighted confidence score by dividing average confidence by total detections
+    df_combined['weighted_confidence'] = df_combined['avg_confidence'] / df_combined['total_detections']
+
+    # Output the resulting dataframe
+    print(df_combined[['frame', 'total_detections', 'avg_confidence', 'weighted_confidence']])
+
+    return df_combined
+
+def plot_weighted_confidence(df_combined):
+    plt.figure(figsize=(10, 6))
+    plt.plot(df_combined['frame'], df_combined['weighted_confidence'], label='Weighted Confidence Score', marker='o', color='blue')
+    plt.xlabel('Frame Number')
+    plt.ylabel('Weighted Confidence Score')
+    plt.title('Weighted Confidence Score per Frame')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig('output_plots/weighted_confidence_per_frame.png')
+    plt.show()
+
+
+
+
 if __name__ == "__main__":
 
     model = YOLO('yolov8n.pt')
@@ -468,6 +503,13 @@ if __name__ == "__main__":
 
     df_original = pd.read_csv('output_logs/logs_original_02abbfa.csv')
     df_corrupted = pd.read_csv('output_logs/logs_corrupted_02abbfa.csv')
+
+    # Example usage with your dataframes
+    df_weighted_conf = calculate_weighted_confidence(df_original, df_corrupted)
+    # Save the result to a CSV file if needed
+    df_weighted_conf.to_csv('output_logs/weighted_confidence_scores.csv', index=False)
+
+    plot_weighted_confidence(df_weighted_conf)
 
     # plot_confidence_scores(df_original, df_corrupted)
     plot_detections_histogram(df_original, df_corrupted)
