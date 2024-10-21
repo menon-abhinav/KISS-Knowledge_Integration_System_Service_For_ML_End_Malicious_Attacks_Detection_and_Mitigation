@@ -348,6 +348,17 @@ if __name__ == "__main__":
     # output_corrupted_video_path = 'output/output_corrupted_video_6.mp4'
     # corrupted_log_file_path = 'output_logs/logs_corrupted_6.csv'
 
+
+    # EDIT THESE PATHS
+    original_video_path = 'data/02abbfa.mp4'
+    output_video_path = 'output/output_original_video_02abbfa.mp4'
+    log_file_path = 'output_logs/logs_original_02abbfa.csv'
+
+    corrupted_video_path = 'data/02abbfa_attacked.mp4'
+    output_corrupted_video_path = 'output/output_corrupted_video_02abbfa.mp4'
+    corrupted_log_file_path = 'output_logs/logs_corrupted_02abbfa.csv'
+
+
     # Path to original video
     # original_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/6.mp4'
     # output_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_original_video_6.mp4'
