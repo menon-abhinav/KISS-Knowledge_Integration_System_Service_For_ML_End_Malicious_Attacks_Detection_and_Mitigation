@@ -114,43 +114,102 @@ model = YOLO('yolov8n.pt')
 #     print(f"Processing complete. Log saved to {log_file}")
 
 
+# def process_video(input_video_path, output_video_path, log_file):
+#     cap = cv2.VideoCapture(input_video_path)
+#     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+#     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+#     fps = int(cap.get(cv2.CAP_PROP_FPS))
+#
+#     # Define the codec and create a VideoWriter object to save output video
+#     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+#     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
+#
+#     results_log = []
+#     total_frames_read = 0
+#
+#     # Process each frame
+#     frame_num = 0
+#     while cap.isOpened():
+#         ret, frame = cap.read()
+#         if not ret:
+#             continue
+#
+#         total_frames_read += 1
+#         print(f"Frame {total_frames_read} read successfully")  # Log frame reads
+#
+#         results = model(frame)
+#         annotated_frame = results[0].plot()
+#         out.write(annotated_frame)
+#
+#         # If no detections are found, log the frame without detections
+#         if len(results[0].boxes) == 0:
+#             results_log.append({
+#                 "frame": frame_num,
+#                 "class": "No detection",
+#                 "confidence": 0,
+#                 "bbox": []
+#             })
+#
+#         # Log the detection results
+#         for box in results[0].boxes:
+#             conf = box.conf.item()
+#             x1, y1, x2, y2 = box.xyxy[0].tolist()
+#             class_id = box.cls.item()
+#             label = model.names[int(class_id)]
+#
+#             results_log.append({
+#                 "frame": frame_num,
+#                 "class": label,
+#                 "confidence": conf,
+#                 "bbox": [x1, y1, x2, y2]
+#             })
+#
+#             print(
+#                 f"Frame {frame_num}: Detected {label} with confidence {conf:.2f} at [{x1:.0f}, {y1:.0f}, {x2:.0f}, {y2:.0f}]")
+#
+#         frame_num += 1
+#
+#     cap.release()
+#     out.release()
+#
+#     df = pd.DataFrame(results_log)
+#     df.to_csv(log_file, index=False)
+#     print(f"Processing complete. Log saved to {log_file}")
+
+
 def process_video(input_video_path, output_video_path, log_file):
     cap = cv2.VideoCapture(input_video_path)
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    print(f"Total frames in the video: {total_frames}")  # Verify total frames
 
     # Define the codec and create a VideoWriter object to save output video
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
 
     results_log = []
-    total_frames_read = 0
+    frame_num = 0
 
     # Process each frame
-    frame_num = 0
-    while cap.isOpened():
+    while frame_num < total_frames:
         ret, frame = cap.read()
+
         if not ret:
-            break
+            print(f"Error reading frame {frame_num}, skipping.")  # Handle corrupted frame
+            frame_num += 1
+            continue
 
-        total_frames_read += 1
-        print(f"Frame {total_frames_read} read successfully")  # Log frame reads
+        print(f"Processing frame {frame_num} of {total_frames}")
 
+        # Run YOLO inference on the frame
         results = model(frame)
         annotated_frame = results[0].plot()
         out.write(annotated_frame)
 
-        # If no detections are found, log the frame without detections
-        if len(results[0].boxes) == 0:
-            results_log.append({
-                "frame": frame_num,
-                "class": "No detection",
-                "confidence": 0,
-                "bbox": []
-            })
-
-        # Log the detection results
+        # Log detection results
         for box in results[0].boxes:
             conf = box.conf.item()
             x1, y1, x2, y2 = box.xyxy[0].tolist()
@@ -164,17 +223,17 @@ def process_video(input_video_path, output_video_path, log_file):
                 "bbox": [x1, y1, x2, y2]
             })
 
-            print(
-                f"Frame {frame_num}: Detected {label} with confidence {conf:.2f} at [{x1:.0f}, {y1:.0f}, {x2:.0f}, {y2:.0f}]")
-
         frame_num += 1
 
     cap.release()
     out.release()
 
+    # Save detection logs
     df = pd.DataFrame(results_log)
     df.to_csv(log_file, index=False)
     print(f"Processing complete. Log saved to {log_file}")
+
+
 
 
 # Functions to visualize the results
@@ -352,7 +411,7 @@ if __name__ == "__main__":
     # EDIT THESE PATHS
     original_video_path = 'data/02abbfa.mp4'
     output_video_path = 'output/output_original_video_02abbfa.mp4'
-    log_file_path = 'output_logs/logs_original_02abbfa.csv'
+    log_file_path = 'output_logs/logs_original_02ab bfa.csv'
 
     corrupted_video_path = 'data/02abbfa_attacked.mp4'
     output_corrupted_video_path = 'output/output_corrupted_video_02abbfa.mp4'
@@ -377,13 +436,13 @@ if __name__ == "__main__":
     output_corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_corrupted_video_02abbfa.mp4'
     corrupted_log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_corrupted_02abbfa.csv'
 
+    cap = cv2.VideoCapture(original_video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"Total frames in the video: {total_frames}")
 
-
-
-
-
-
-
+    cap = cv2.VideoCapture(corrupted_video_path)
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    print(f"Total frames in the video: {total_frames}")
 
     # frame_queue = queue.Queue(maxsize=500)
     #
@@ -402,7 +461,7 @@ if __name__ == "__main__":
 
     # Process original video
     process_video(original_video_path, output_video_path, log_file_path)
-    print("Video Processing Complete for Original Video")
+    # print("Video Processing Complete for Original Video")
 
     process_video(corrupted_video_path, output_corrupted_video_path, corrupted_log_file_path)
     print("Video Processing Complete for Corrupted Video")
