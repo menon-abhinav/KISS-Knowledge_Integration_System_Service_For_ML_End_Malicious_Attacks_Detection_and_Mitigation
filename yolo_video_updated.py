@@ -395,36 +395,73 @@ def plot_number_of_detections_per_frame(df_original, df_corrupted,
 
 
 
+# def calculate_weighted_confidence(df_original, df_corrupted):
+#     # Step 1: Get the total number of detections per frame in the original video
+#     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index()
+#     df_original_detections.columns = ['frame', 'total_detections']
+#
+#     # Step 2: Get the average confidence score for each frame in the corrupted video
+#     df_corrupted_avg_conf = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
+#     df_corrupted_avg_conf.columns = ['frame', 'avg_confidence']
+#
+#     # Step 3: Merge the two dataframes on the 'frame' column
+#     df_combined = pd.merge(df_original_detections, df_corrupted_avg_conf, on='frame')
+#
+#     # Step 4: Calculate the weighted confidence score by dividing average confidence by total detections
+#     df_combined['weighted_confidence'] = df_combined['avg_confidence'] / df_combined['total_detections']
+#
+#     # Output the resulting dataframe
+#     print(df_combined[['frame', 'total_detections', 'avg_confidence', 'weighted_confidence']])
+#
+#     return df_combined
+#
+# def plot_weighted_confidence(df_combined):
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df_combined['frame'], df_combined['weighted_confidence'], label='Weighted Confidence Score', marker='o', color='blue')
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Weighted Confidence Score')
+#     plt.title('Weighted Confidence Score per Frame')
+#     plt.legend()
+#     plt.grid(True)
+#     plt.savefig('output_plots/weighted_confidence_per_frame.png')
+#     plt.show()
+
 def calculate_weighted_confidence(df_original, df_corrupted):
-    # Step 1: Get the total number of detections per frame in the original video
-    df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index()
-    df_original_detections.columns = ['frame', 'total_detections']
+    """
+    Calculate weighted confidence for each frame based on original detections and corrupted confidence.
+    """
+    # Group by frame to calculate the total detections per frame in original and corrupted videos
+    df_original_grouped = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+    df_corrupted_grouped = df_corrupted.groupby('frame')['confidence'].mean().reset_index(
+        name='avg_corrupted_confidence')
+    df_corrupted_detections = df_corrupted.groupby('frame')['confidence'].count().reset_index(
+        name='corrupted_detections')
 
-    # Step 2: Get the average confidence score for each frame in the corrupted video
-    df_corrupted_avg_conf = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
-    df_corrupted_avg_conf.columns = ['frame', 'avg_confidence']
+    # Merge dataframes to align original detections with corrupted confidence
+    merged_df = pd.merge(df_original_grouped, df_corrupted_grouped, on='frame')
+    merged_df = pd.merge(merged_df, df_corrupted_detections, on='frame')
 
-    # Step 3: Merge the two dataframes on the 'frame' column
-    df_combined = pd.merge(df_original_detections, df_corrupted_avg_conf, on='frame')
+    # Calculate weighted confidence for each frame
+    merged_df['weighted_confidence'] = (merged_df['avg_corrupted_confidence'] / merged_df['original_detections']) * \
+                                       merged_df['corrupted_detections']
 
-    # Step 4: Calculate the weighted confidence score by dividing average confidence by total detections
-    df_combined['weighted_confidence'] = df_combined['avg_confidence'] / df_combined['total_detections']
+    return merged_df
 
-    # Output the resulting dataframe
-    print(df_combined[['frame', 'total_detections', 'avg_confidence', 'weighted_confidence']])
-
-    return df_combined
-
-def plot_weighted_confidence(df_combined):
+def plot_weighted_confidence(merged_df, output_path='output_plots/weighted_confidence_plot.png'):
+    """
+    Plot weighted confidence over the frames.
+    """
     plt.figure(figsize=(10, 6))
-    plt.plot(df_combined['frame'], df_combined['weighted_confidence'], label='Weighted Confidence Score', marker='o', color='blue')
+    plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label='Weighted Confidence', marker='o',
+             color='blue')
     plt.xlabel('Frame Number')
-    plt.ylabel('Weighted Confidence Score')
-    plt.title('Weighted Confidence Score per Frame')
+    plt.ylabel('Weighted Confidence')
+    plt.title('YOLO Weighted Confidence Over Frames')
     plt.legend()
     plt.grid(True)
-    plt.savefig('output_plots/weighted_confidence_per_frame.png')
+    plt.savefig(output_path)
     plt.show()
+    print(f"Weighted confidence plot saved as '{output_path}'")
 
 
 
@@ -444,13 +481,13 @@ if __name__ == "__main__":
 
 
     # EDIT THESE PATHS
-    original_video_path = 'data/02abbfa.mp4'
-    output_video_path = 'output/output_original_video_02abbfa.mp4'
-    log_file_path = 'output_logs/logs_original_02ab bfa.csv'
-
-    corrupted_video_path = 'data/02abbfa_attacked.mp4'
-    output_corrupted_video_path = 'output/output_corrupted_video_02abbfa.mp4'
-    corrupted_log_file_path = 'output_logs/logs_corrupted_02abbfa.csv'
+    # original_video_path = 'data/02abbfa.mp4'
+    # output_video_path = 'output/output_original_video_02abbfa.mp4'
+    # log_file_path = 'output_logs/logs_original_02ab bfa.csv'
+    #
+    # corrupted_video_path = 'data/02abbfa_attacked.mp4'
+    # output_corrupted_video_path = 'output/output_corrupted_video_02abbfa.mp4'
+    # corrupted_log_file_path = 'output_logs/logs_corrupted_02abbfa.csv'
 
 
     # Path to original video
