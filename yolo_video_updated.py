@@ -9,7 +9,6 @@ import queue
 import os
 
 
-model = YOLO('yolov8n.pt')
 
 # def process_image_frame(frame, image_id, log_file):
 #     """Processes an individual frame (image), performs YOLO object detection, and logs the results."""
