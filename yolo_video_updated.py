@@ -507,6 +507,15 @@ if __name__ == "__main__":
     output_corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_corrupted_video_02abbfa.mp4'
     corrupted_log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_corrupted_02abbfa.csv'
 
+
+    # original_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/original_videos/02c091d.mp4'
+    # output_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_original_video_02c091d.mp4'
+    # log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_original_02c091d.csv'
+    #
+    # corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/attacked_videos/02c091d.mp4'
+    # output_corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_corrupted_video_02c091d.mp4'
+    # corrupted_log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_corrupted_02c091d.csv'
+
     cap = cv2.VideoCapture(original_video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f"Total frames in the video: {total_frames}")
@@ -537,8 +546,8 @@ if __name__ == "__main__":
     process_video(corrupted_video_path, output_corrupted_video_path, corrupted_log_file_path)
     print("Video Processing Complete for Corrupted Video")
 
-    df_original = pd.read_csv('output_logs/logs_original_02abbfa.csv')
-    df_corrupted = pd.read_csv('output_logs/logs_corrupted_02abbfa.csv')
+    df_original = pd.read_csv(log_file_path)
+    df_corrupted = pd.read_csv(corrupted_log_file_path)
 
     # Example usage with your dataframes
     df_weighted_conf = calculate_weighted_confidence(df_original, df_corrupted)
