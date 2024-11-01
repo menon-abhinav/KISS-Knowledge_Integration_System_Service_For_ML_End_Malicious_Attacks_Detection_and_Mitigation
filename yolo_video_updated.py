@@ -9,7 +9,6 @@ import queue
 import os
 
 
-
 # def process_image_frame(frame, image_id, log_file):
 #     """Processes an individual frame (image), performs YOLO object detection, and logs the results."""
 #
@@ -233,31 +232,74 @@ def process_video(input_video_path, output_video_path, log_file):
     print(f"Processing complete. Log saved to {log_file}")
 
 
+# def plot_confidence_scores(df_original, df_corrupted):
+#
+#     # Calculate smoothed confidence scores
+#     df_original['smoothed_conf'] = df_original['confidence'].rolling(window=50, min_periods=1).mean()
+#     df_corrupted['smoothed_conf'] = df_corrupted['confidence'].rolling(window=50, min_periods=1).mean()
+#
+#     # Plot original and corrupted smoothed confidence scores
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df_original.index, df_original['smoothed_conf'], label='Original Video (Smoothed)', marker='o', markersize=3, color='green')
+#     plt.plot(df_corrupted.index, df_corrupted['smoothed_conf'], label='Corrupted Video (Smoothed)', marker='x', markersize=3, color='red')
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Confidence Score')
+#     plt.title('YOLO Confidence Scores Comparison (Smoothed)')
+#     plt.legend()
+#     plt.savefig('output_plots/confidence_scores_comparison.png')
+#     print("Confidence score comparison plot saved as 'output_plots/confidence_scores_comparison.png'")
+#
+#     # Return smoothed values for ratio calculation
+#     return df_original['smoothed_conf'], df_corrupted['smoothed_conf']
 
 
-# Functions to visualize the results
-def plot_confidence_scores(df_original, df_corrupted):
+def plot_confidence_score_ratio(df_original, df_corrupted,
+                                output_path='output_plots/confidence_score_ratio_comparison.png'):
+    """
+    Plots the smoothed confidence scores for original and corrupted videos and the ratio between them.
 
-    df_original['smoothed_conf'] = df_original['confidence'].rolling(window=50).mean()
-    df_corrupted['smoothed_conf'] = df_corrupted['confidence'].rolling(window=50).mean()
+    Parameters:
+    - df_original: DataFrame containing original video confidence scores.
+    - df_corrupted: DataFrame containing corrupted video confidence scores.
+    - output_path: Path to save the plot.
+    """
+    # Calculate smoothed confidence scores
+    df_original['smoothed_conf'] = df_original['confidence'].rolling(window=50, min_periods=1).mean()
+    df_corrupted['smoothed_conf'] = df_corrupted['confidence'].rolling(window=50, min_periods=1).mean()
 
+    # Reindex to ensure the same frame range, limited to 300 frames for consistency
+    max_frames = 300
+    all_frames = pd.RangeIndex(start=0, stop=max_frames)
 
+    df_original = df_original.set_index('frame').reindex(all_frames).fillna(0).reset_index()
+    df_corrupted = df_corrupted.set_index('frame').reindex(all_frames).fillna(0).reset_index()
+
+    # Calculate confidence score ratio
+    confidence_ratio = df_corrupted['smoothed_conf'] / df_original['smoothed_conf']
+    confidence_ratio.replace([float('inf'), -float('inf')], 0, inplace=True)  # Handle infinities
+    confidence_ratio.fillna(0, inplace=True)  # Handle NaNs
+
+    # Plot original, corrupted, and confidence score ratio
     plt.figure(figsize=(10, 6))
-    plt.plot(df_original['smoothed_conf'], label='Original Video (Smoothed)', marker='o', markersize=3, color='green')
-    plt.plot(df_corrupted['smoothed_conf'], label='Corrupted Video (Smoothed)', marker='x', markersize=3, color='red')
+    plt.plot(df_original.index, df_original['smoothed_conf'], label='Original Video (Smoothed)', marker='o',
+             markersize=3, color='green')
+    plt.plot(df_corrupted.index, df_corrupted['smoothed_conf'], label='Corrupted Video (Smoothed)', marker='x',
+             markersize=3, color='red')
+    plt.plot(df_original.index, confidence_ratio, label='Confidence Score Ratio (Corrupted/Original)', linestyle='--',
+             color='blue')
+
     plt.xlabel('Frame Number')
-    plt.ylabel('Confidence Score')
-    plt.title('YOLO Confidence Scores Comparison (Smoothed)')
+    plt.ylabel('Confidence Score / Confidence Score Ratio')
+    plt.title('YOLO Confidence Scores and Ratio Comparison (Smoothed)')
     plt.legend()
-    plt.savefig('output_plots/confidence_scores_comparison.png')
-    print("Confidence score comparison plot saved as 'output_plots/confidence_scores_comparison.png'")
+    plt.grid(True)
+    plt.savefig(output_path)
+    print(f"Confidence score ratio comparison plot saved as '{output_path}'")
 
 
 def plot_detections_histogram(df_original, df_corrupted):
-
     df_original['detections'] = df_original.groupby('frame')['confidence'].count()
     df_corrupted['detections'] = df_corrupted.groupby('frame')['confidence'].count()
-
 
     plt.figure(figsize=(10, 6))
     plt.hist(df_original['detections'], bins=15, alpha=0.5, label='Original Video', color='green')
@@ -269,6 +311,7 @@ def plot_detections_histogram(df_original, df_corrupted):
     plt.savefig('output_plots/detections_histogram.png')
     print("Detections histogram saved as 'output_plots/detections_histogram.png'")
 
+
 # Function to calculate bounding box area
 def calculate_bbox_area(df):
     df['bbox'] = df['bbox'].apply(lambda x: ast.literal_eval(x))
@@ -276,12 +319,13 @@ def calculate_bbox_area(df):
 
 
 def plot_number_of_detections(df_original, df_corrupted):
-
     df_original['detections'] = df_original.groupby('frame')['confidence'].count()
     df_corrupted['detections'] = df_corrupted.groupby('frame')['confidence'].count()
     plt.figure(figsize=(10, 6))
-    plt.plot(df_original['frame'], df_original['detections'], label='Original Video Detections', marker='o', markersize=3, color='green')
-    plt.plot(df_corrupted['frame'], df_corrupted['detections'], label='Corrupted Video Detections', marker='x', markersize=3, color='red')
+    plt.plot(df_original['frame'], df_original['detections'], label='Original Video Detections', marker='o',
+             markersize=3, color='green')
+    plt.plot(df_corrupted['frame'], df_corrupted['detections'], label='Corrupted Video Detections', marker='x',
+             markersize=3, color='red')
     plt.xlabel('Frame Number')
     plt.ylabel('Number of Detections')
     plt.title('Number of Detections per Frame')
@@ -291,7 +335,6 @@ def plot_number_of_detections(df_original, df_corrupted):
 
 
 def plot_confidence_histogram(df_original, df_corrupted):
-
     plt.figure(figsize=(10, 6))
     plt.hist(df_original['confidence'], bins=30, alpha=0.5, label='Original Video', color='green')
     plt.hist(df_corrupted['confidence'], bins=30, alpha=0.5, label='Corrupted Video', color='red')
@@ -303,9 +346,10 @@ def plot_confidence_histogram(df_original, df_corrupted):
 
 
 def plot_bbox_area_comparison(df_original, df_corrupted):
-
-    df_original['bbox_area'] = (df_original['bbox'].apply(lambda x: x[2] - x[0])) * (df_original['bbox'].apply(lambda x: x[3] - x[1]))
-    df_corrupted['bbox_area'] = (df_corrupted['bbox'].apply(lambda x: x[2] - x[0])) * (df_corrupted['bbox'].apply(lambda x: x[3] - x[1]))
+    df_original['bbox_area'] = (df_original['bbox'].apply(lambda x: x[2] - x[0])) * (
+        df_original['bbox'].apply(lambda x: x[3] - x[1]))
+    df_corrupted['bbox_area'] = (df_corrupted['bbox'].apply(lambda x: x[2] - x[0])) * (
+        df_corrupted['bbox'].apply(lambda x: x[3] - x[1]))
     plt.figure(figsize=(10, 6))
     plt.scatter(df_original['frame'], df_original['bbox_area'], label='Original Video', alpha=0.5, color='green')
     plt.scatter(df_corrupted['frame'], df_corrupted['bbox_area'], label='Corrupted Video', alpha=0.5, color='red')
@@ -318,7 +362,6 @@ def plot_bbox_area_comparison(df_original, df_corrupted):
 
 
 def plot_class_distribution_comparison(df_original, df_corrupted):
-
     class_counts_original = df_original['class'].value_counts()
     class_counts_corrupted = df_corrupted['class'].value_counts()
     plt.figure(figsize=(10, 6))
@@ -335,7 +378,6 @@ def plot_class_distribution_comparison(df_original, df_corrupted):
 
 def smooth_and_plot_confidence(df_original, df_corrupted, window_size=10,
                                output_path='output_plots/confidence_scores_comparison.png'):
-
     def smooth_data(data, window_size):
         return data.rolling(window=window_size, min_periods=1).mean()
 
@@ -359,6 +401,157 @@ def smooth_and_plot_confidence(df_original, df_corrupted, window_size=10,
 
     plt.savefig(output_path)
     print(f"Confidence score comparison plot saved as '{output_path}'")
+
+
+
+
+
+# def smooth_and_plot_confidence_with_ratio(df_original, df_corrupted, window_size=10,
+#                                           output_path='output_plots/confidence_scores_ratio_comparison.png'):
+#     def smooth_data(data, window_size):
+#         return data.rolling(window=window_size, min_periods=1).mean()
+#
+#     # Group and smooth confidence scores
+#     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
+#     df_corrupted_grouped = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
+#
+#     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
+#     df_corrupted_grouped['smoothed_conf'] = smooth_data(df_corrupted_grouped['confidence'], window_size)
+#
+#     # Calculate the confidence score ratio
+#     confidence_ratio = df_corrupted_grouped['smoothed_conf'] / df_original_grouped['smoothed_conf']
+#     confidence_ratio.replace([float('inf'), -float('inf')], 0, inplace=True)  # Handle infinities
+#     confidence_ratio.fillna(0, inplace=True)  # Handle NaNs
+#
+#     # Plot original, corrupted, and ratio confidence scores
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df_original_grouped['frame'], df_original_grouped['smoothed_conf'],
+#              label='Original Video (Smoothed)', marker='o', markersize=4, alpha=0.7, linewidth=1.5, color='green')
+#     plt.plot(df_corrupted_grouped['frame'], df_corrupted_grouped['smoothed_conf'],
+#              label='Corrupted Video (Smoothed)', marker='x', markersize=4, alpha=0.7, linewidth=1.5, color='red')
+#     plt.plot(df_original_grouped['frame'], confidence_ratio,
+#              label='Confidence Score Ratio (Corrupted/Original)', linestyle='--', linewidth=1.5, color='blue')
+#
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Confidence Score / Confidence Score Ratio')
+#     plt.title('YOLO Confidence Scores and Ratio Comparison (Smoothed)')
+#     plt.legend()
+#     plt.grid(True)
+#
+#     plt.savefig(output_path)
+#     print(f"Confidence score ratio comparison plot saved as '{output_path}'")
+
+
+import matplotlib.pyplot as plt
+import pandas as pd
+
+def smooth_and_plot_confidence_with_ratio(df_original, df_corrupted, window_size=10,
+                                          output_path='output_plots/confidence_scores_ratio_comparison.png',
+                                          log_folder='output_logs'):
+    def smooth_data(data, window_size):
+        return data.rolling(window=window_size, min_periods=1).mean()
+
+    # Group by frame and calculate mean confidence for each frame
+    df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
+    df_corrupted_grouped = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
+
+    # Smooth the confidence scores
+    df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
+    df_corrupted_grouped['smoothed_conf'] = smooth_data(df_corrupted_grouped['confidence'], window_size)
+
+    # Merge on frame, keeping only frames present in both datasets (inner join)
+    merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']],
+                         df_corrupted_grouped[['frame', 'smoothed_conf']],
+                         on='frame', suffixes=('_original', '_corrupted'))
+
+    # Calculate confidence score ratio
+    merged_df['confidence_ratio'] = merged_df['smoothed_conf_corrupted'] / merged_df['smoothed_conf_original']
+    merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], pd.NA, inplace=True)  # Handle infinities
+
+    # Save the intermediate data for inspection
+    df_original_grouped.to_csv(f"{log_folder}/smoothed_confidence_original.csv", index=False)
+    df_corrupted_grouped.to_csv(f"{log_folder}/smoothed_confidence_corrupted.csv", index=False)
+    merged_df.to_csv(f"{log_folder}/confidence_ratio.csv", index=False)
+    print(f"Saved smoothed confidence scores and ratio to '{log_folder}'")
+
+    # Plot only the confidence ratio, skipping over missing frames
+    plt.figure(figsize=(10, 6))
+    plt.plot(merged_df['frame'], merged_df['confidence_ratio'],
+             label='Confidence Score Ratio (Corrupted/Original)', linestyle='--', linewidth=1.5, color='blue')
+
+    plt.xlabel('Frame Number')
+    plt.ylabel('Confidence Score Ratio')
+    plt.title('YOLO Confidence Score Ratio (Smoothed)')
+    plt.legend()
+    plt.grid(True)
+
+    plt.savefig(output_path)
+    print(f"Confidence score ratio plot saved as '{output_path}'")
+
+
+
+
+def plot_confidence_score_ratio_only(df_original, df_corrupted, window_size=10, epsilon=0.01,
+                                     output_path='output_plots/confidence_score_ratio_only.png'):
+    """
+    Plots only the confidence score ratio (corrupted/original) after smoothing.
+
+    Parameters:
+    - df_original: DataFrame containing original video confidence scores.
+    - df_corrupted: DataFrame containing corrupted video confidence scores.
+    - window_size: Window size for smoothing.
+    - epsilon: Threshold to consider two values nearly equal.
+    - output_path: Path to save the plot.
+    """
+
+    def smooth_data(data, window_size):
+        return data.rolling(window=window_size, min_periods=1).mean()
+
+    # Ensure the 'frame' column exists; if not, create it with a sequential index
+    if 'frame' not in df_original.columns:
+        df_original = df_original.reset_index().rename(columns={'index': 'frame'})
+    if 'frame' not in df_corrupted.columns:
+        df_corrupted = df_corrupted.reset_index().rename(columns={'index': 'frame'})
+
+    # Group by frame and calculate mean confidence per frame
+    df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
+    df_corrupted_grouped = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
+
+    # Create a unified index for frames
+    all_frames = pd.RangeIndex(start=0,
+                               stop=max(df_original_grouped['frame'].max(), df_corrupted_grouped['frame'].max()) + 1)
+    df_original_grouped = df_original_grouped.set_index('frame').reindex(all_frames, fill_value=0).reset_index()
+    df_corrupted_grouped = df_corrupted_grouped.set_index('frame').reindex(all_frames, fill_value=0).reset_index()
+
+    # Smooth the confidence scores
+    df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
+    df_corrupted_grouped['smoothed_conf'] = smooth_data(df_corrupted_grouped['confidence'], window_size)
+
+    # Calculate the confidence score ratio (corrupted/original) with stability adjustments
+    confidence_ratio = []
+    for orig, corr in zip(df_original_grouped['smoothed_conf'], df_corrupted_grouped['smoothed_conf']):
+        if abs(orig - corr) < epsilon:
+            confidence_ratio.append(1)  # If values are close, set ratio to 1
+        elif orig > epsilon:
+            confidence_ratio.append(corr / orig)  # Normal ratio calculation
+        else:
+            confidence_ratio.append(0)  # Avoid division by very small numbers
+
+    # Plot only the confidence score ratio
+    plt.figure(figsize=(10, 6))
+    plt.plot(df_original_grouped['frame'], confidence_ratio,
+             label='Confidence Score Ratio (Corrupted/Original)', linestyle='--', linewidth=1.5, color='blue')
+
+    plt.xlabel('Frame Number')
+    plt.ylabel('Confidence Score Ratio')
+    plt.title('Confidence Score Ratio (Corrupted/Original)')
+    plt.legend()
+    plt.grid(True)
+
+    # Save the plot
+    plt.savefig(output_path)
+    print(f"Confidence score ratio only plot saved as '{output_path}'")
+
 
 def plot_number_of_detections_per_frame(df_original, df_corrupted,
                                         output_path='output_plots/number_of_detections_per_frame.png'):
@@ -391,7 +584,6 @@ def plot_number_of_detections_per_frame(df_original, df_corrupted,
     plt.grid(True)
     plt.savefig(output_path)
     print(f"Number of detections per frame plot saved as '{output_path}'")
-
 
 
 # def calculate_weighted_confidence(df_original, df_corrupted):
@@ -446,6 +638,7 @@ def calculate_weighted_confidence(df_original, df_corrupted):
 
     return merged_df
 
+
 def plot_weighted_confidence(merged_df, output_path='output_plots/weighted_confidence_plot.png'):
     """
     Plot weighted confidence over the frames.
@@ -463,10 +656,29 @@ def plot_weighted_confidence(merged_df, output_path='output_plots/weighted_confi
     print(f"Weighted confidence plot saved as '{output_path}'")
 
 
+def plot_detection_ratio(detection_rates, output_path='output_plots/detection_rate_ratio.png'):
+    """
+    This function plots only the detection rate ratio between corrupted and original videos.
+
+    Parameters:
+    detection_rates (pd.DataFrame): DataFrame containing frame-by-frame detection counts for both videos.
+    output_path (str): Path to save the plot image.
+    """
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(detection_rates['frame'], detection_rates['detection_ratio'],
+             label='Detection Rate Ratio (Corrupted/Original)', marker='o', linestyle='--', color='blue')
+    plt.xlabel('Frame Number')
+    plt.ylabel('Detection Rate Ratio')
+    plt.title('Detection Rate Ratio (Corrupted/Original) per Frame')
+    plt.legend()
+    plt.grid(True)
+    plt.savefig(output_path)
+    plt.show()
+    print(f"Detection rate ratio plot saved as '{output_path}'")
 
 
 if __name__ == "__main__":
-
     model = YOLO('yolov8n.pt')
     print("Model Loaded Successfuly")
 
@@ -478,7 +690,6 @@ if __name__ == "__main__":
     # output_corrupted_video_path = 'output/output_corrupted_video_6.mp4'
     # corrupted_log_file_path = 'output_logs/logs_corrupted_6.csv'
 
-
     # EDIT THESE PATHS
     # original_video_path = 'data/02abbfa.mp4'
     # output_video_path = 'output/output_original_video_02abbfa.mp4'
@@ -487,7 +698,6 @@ if __name__ == "__main__":
     # corrupted_video_path = 'data/02abbfa_attacked.mp4'
     # output_corrupted_video_path = 'output/output_corrupted_video_02abbfa.mp4'
     # corrupted_log_file_path = 'output_logs/logs_corrupted_02abbfa.csv'
-
 
     # Path to original video
     # original_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/6.mp4'
@@ -498,7 +708,6 @@ if __name__ == "__main__":
     # output_corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_corrupted_video_6.mp4'
     # corrupted_log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_corrupted_6.csv'
 
-
     original_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/original_videos/02abbfa.mp4'
     output_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_original_video_02abbfa.mp4'
     log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_original_02abbfa.csv'
@@ -506,7 +715,6 @@ if __name__ == "__main__":
     corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/attacked_videos/02abbfa.mp4'
     output_corrupted_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_corrupted_video_02abbfa.mp4'
     corrupted_log_file_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output_logs/logs_corrupted_02abbfa.csv'
-
 
     # original_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/data/original_videos/02c091d.mp4'
     # output_video_path = '/Users/abhinav/Documents/MS CS/Sem 5 - Fall 2024/src/YOLO_Video/output/output_original_video_02c091d.mp4'
@@ -536,9 +744,6 @@ if __name__ == "__main__":
     # process_frame_queue(frame_queue, output_corrupted_video_path, corrupted_log_file_path)
     # print("Queue-based frame processing complete.")
 
-
-
-
     # Process original video
     process_video(original_video_path, output_video_path, log_file_path)
     # print("Video Processing Complete for Original Video")
@@ -556,7 +761,13 @@ if __name__ == "__main__":
 
     plot_weighted_confidence(df_weighted_conf)
 
-    # plot_confidence_scores(df_original, df_corrupted)
+    # smoothed_conf_original, smoothed_conf_corrupted = plot_confidence_scores(df_original, df_corrupted)
+    # plot_confidence_score_ratio(smoothed_conf_original, smoothed_conf_corrupted)
+
+    # smoothed_conf_original, smoothed_conf_corrupted = plot_confidence_scores(df_original, df_corrupted)
+    # plot_confidence_score_ratio(smoothed_conf_original, smoothed_conf_corrupted)
+    # plot_confidence_score_ratio(df_original, df_corrupted)
+
     plot_detections_histogram(df_original, df_corrupted)
     #
     # calculate_bbox_area(df_original)
@@ -565,14 +776,39 @@ if __name__ == "__main__":
     # plot_number_of_detections(df_original, df_corrupted)
     plot_confidence_histogram(df_original, df_corrupted)
     # plot_bbox_area_comparison(df_original, df_corrupted)
-    plot_class_distribution_comparison(df_original, df_corrupted)
+    # plot_class_distribution_comparison(df_original, df_corrupted)
+
+    smooth_and_plot_confidence(df_original, df_corrupted, window_size=10,
+                               output_path='output_plots/confidence_scores_comparison.png')
+    smooth_and_plot_confidence_with_ratio(df_original, df_corrupted, window_size=10)
+    # plot_confidence_score_ratio_only(df_original, df_corrupted, window_size=10)
 
 
 
-    smooth_and_plot_confidence(df_original, df_corrupted, window_size=10, output_path='output_plots/confidence_scores_comparison.png')
-    plot_number_of_detections_per_frame(df_original, df_corrupted, output_path='output_plots/number_of_detections_per_frame.png')
+
+    plot_number_of_detections_per_frame(df_original, df_corrupted,
+                                        output_path='output_plots/number_of_detections_per_frame.png')
+
+    # Calculate detection rates per frame for original and corrupted videos
+    all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_corrupted['frame'].max()) + 1)})
+    df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+    df_corrupted_detections = df_corrupted.groupby('frame')['confidence'].count().reset_index(
+        name='corrupted_detections')
+
+    # Merge with all_frames to ensure all frames are accounted for
+    detection_rates = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+    detection_rates = detection_rates.merge(df_corrupted_detections, on='frame', how='left').fillna(0)
+
+    # Calculate detection ratio (corrupted / original) and handle division by zero
+    detection_rates['detection_ratio'] = detection_rates['corrupted_detections'] / detection_rates[
+        'original_detections']
+    # Update 'detection_ratio' to replace infinities with 0
+    detection_rates['detection_ratio'] = detection_rates['detection_ratio'].replace([float('inf'), -float('inf')], 0)
+
+    # Update 'detection_ratio' to replace NaNs with 0
+    detection_rates['detection_ratio'] = detection_rates['detection_ratio'].fillna(0)
+
+    # Call functions for generating the new plots
+    plot_detection_ratio(detection_rates)
 
     print("All plots generated and saved successfully.")
-
-
-
