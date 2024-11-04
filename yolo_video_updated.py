@@ -468,11 +468,6 @@ def smooth_and_plot_confidence_with_ratio(df_original, df_corrupted, window_size
     merged_df['confidence_ratio'] = merged_df['smoothed_conf_corrupted'] / merged_df['smoothed_conf_original']
     merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], pd.NA, inplace=True)  # Handle infinities
 
-    # Save the intermediate data for inspection
-    df_original_grouped.to_csv(f"{log_folder}/smoothed_confidence_original.csv", index=False)
-    df_corrupted_grouped.to_csv(f"{log_folder}/smoothed_confidence_corrupted.csv", index=False)
-    merged_df.to_csv(f"{log_folder}/confidence_ratio.csv", index=False)
-    print(f"Saved smoothed confidence scores and ratio to '{log_folder}'")
 
     # Plot only the confidence ratio, skipping over missing frames
     plt.figure(figsize=(10, 6))
