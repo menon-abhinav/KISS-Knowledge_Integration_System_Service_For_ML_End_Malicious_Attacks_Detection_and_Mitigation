@@ -91,15 +91,21 @@ def calculate_weighted_confidence(df_original, df_corrupted):
     return merged_df
 
 
-# Function to plot weighted confidence with horizontal regions
-def plot_weighted_confidence(merged_df, output_path='output_plots/weighted_confidence_plot.png'):
-    plt.figure(figsize=(10, 6))
+def plot_weighted_confidence(df_original, df_attacked, comparison_label, output_path):
+    # Merge dataframes to align original detections with corrupted confidence
+    df_original_grouped = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+    df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index(name='avg_attacked_confidence')
+    df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
 
+    merged_df = pd.merge(df_original_grouped, df_attacked_grouped, on='frame')
+    merged_df = pd.merge(merged_df, df_attacked_detections, on='frame')
+    merged_df['weighted_confidence'] = (merged_df['avg_attacked_confidence'] / merged_df['original_detections']) * merged_df['attacked_detections']
+
+    plt.figure(figsize=(10, 6))
     threshold = merged_df['weighted_confidence'].mean() * WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER
 
     # Plot the weighted confidence with horizontal shading for attacked regions
-    plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label='Weighted Confidence', marker='o',
-             color='blue')
+    plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label=f'Weighted Confidence ({comparison_label})', marker='o', color='blue')
     plt.axhline(y=threshold, color='gray', linestyle='--')
 
     # Shade regions horizontally based on threshold
@@ -107,31 +113,37 @@ def plot_weighted_confidence(merged_df, output_path='output_plots/weighted_confi
         start_frame = merged_df['frame'].iloc[i]
         end_frame = merged_df['frame'].iloc[i + 1]
         if merged_df['weighted_confidence'].iloc[i] < threshold:
-            plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)  # Attacked Region
+            plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)
         else:
-            plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)  # Non-Attacked Region
+            plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)
 
-    # Custom legend handles
     attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
     non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
-    plt.legend(handles=[plt.Line2D([0], [0], color='blue', label='Weighted Confidence'),
-                        attacked_patch, non_attacked_patch])
+    plt.legend(handles=[plt.Line2D([0], [0], color='blue', label=f'Weighted Confidence ({comparison_label})'), attacked_patch, non_attacked_patch])
 
     plt.xlabel('Frame Number')
     plt.ylabel('Weighted Confidence')
-    plt.title('YOLO Weighted Confidence Over Frames')
+    plt.title(f'YOLO Weighted Confidence Over Frames ({comparison_label})')
     plt.grid(True)
     plt.savefig(output_path)
     plt.show()
 
 
-# Function to plot detection ratio with horizontal regions for both lower and upper thresholds
-def plot_detection_ratio(detection_rates, output_path='output_plots/detection_rate_ratio.png'):
-    plt.figure(figsize=(10, 6))
 
-    # Plot the detection rate ratio
-    plt.plot(detection_rates['frame'], detection_rates['detection_ratio'],
-             label='Detection Rate Ratio (Corrupted/Original)', marker='o', linestyle='--', color='blue')
+
+def plot_detection_ratio(df_original, df_attacked, comparison_label, output_path):
+    # Calculate detections per frame for each video
+    all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_attacked['frame'].max()) + 1)})
+
+    df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+    df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
+    detection_rates = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+    detection_rates = detection_rates.merge(df_attacked_detections, on='frame', how='left').fillna(0)
+    detection_rates['detection_ratio'] = detection_rates['attacked_detections'] / detection_rates['original_detections']
+    detection_rates['detection_ratio'] = detection_rates['detection_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(detection_rates['frame'], detection_rates['detection_ratio'], label=f'Detection Rate Ratio ({comparison_label})', marker='o', linestyle='--', color='blue')
     plt.axhline(y=DETECTION_RATIO_LOWER_THRESHOLD, color='gray', linestyle='--')
     plt.axhline(y=DETECTION_RATIO_UPPER_THRESHOLD, color='gray', linestyle='--')
 
@@ -140,81 +152,52 @@ def plot_detection_ratio(detection_rates, output_path='output_plots/detection_ra
         start_frame = detection_rates['frame'].iloc[i]
         end_frame = detection_rates['frame'].iloc[i + 1]
         ratio_value = detection_rates['detection_ratio'].iloc[i]
+        color = 'lightcoral' if ratio_value < DETECTION_RATIO_LOWER_THRESHOLD or ratio_value > DETECTION_RATIO_UPPER_THRESHOLD else 'lightgreen'
+        plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
 
-        if ratio_value < DETECTION_RATIO_LOWER_THRESHOLD or ratio_value > DETECTION_RATIO_UPPER_THRESHOLD:
-            plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)  # Attacked Region
-        else:
-            plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)  # Non-Attacked Region
-
-    # Custom legend handles
-    attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
-    non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
-    plt.legend(handles=[plt.Line2D([0], [0], color='blue', linestyle='--', label='Detection Rate Ratio'),
-                        attacked_patch, non_attacked_patch])
-
+    plt.legend()
     plt.xlabel('Frame Number')
     plt.ylabel('Detection Rate Ratio')
-    plt.title('Detection Rate Ratio (Corrupted/Original) per Frame')
+    plt.title(f'Detection Rate Ratio per Frame ({comparison_label})')
     plt.grid(True)
     plt.savefig(output_path)
     plt.show()
 
 
-# Function to plot confidence score ratio with horizontal regions for both lower and upper thresholds
-def smooth_and_plot_confidence_with_ratio(df_original, df_corrupted, window_size=10,
-                                          output_path='output_plots/confidence_scores_ratio_comparison.png'):
+
+def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_label, window_size=10, output_path='output_plots/confidence_scores_ratio_comparison.png'):
     def smooth_data(data, window_size):
         return data.rolling(window=window_size, min_periods=1).mean()
 
-    # Group by frame and calculate mean confidence for each frame
     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
-    df_corrupted_grouped = df_corrupted.groupby('frame')['confidence'].mean().reset_index()
-
-    # Smooth the confidence scores
+    df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index()
     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
-    df_corrupted_grouped['smoothed_conf'] = smooth_data(df_corrupted_grouped['confidence'], window_size)
+    df_attacked_grouped['smoothed_conf'] = smooth_data(df_attacked_grouped['confidence'], window_size)
+    merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']], df_attacked_grouped[['frame', 'smoothed_conf']], on='frame', suffixes=('_original', '_attacked'))
 
-    # Merge on frame, keeping only frames present in both datasets (inner join)
-    merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']],
-                         df_corrupted_grouped[['frame', 'smoothed_conf']],
-                         on='frame', suffixes=('_original', '_corrupted'))
-
-    # Calculate confidence score ratio
-    merged_df['confidence_ratio'] = merged_df['smoothed_conf_corrupted'] / merged_df['smoothed_conf_original']
-    merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], pd.NA, inplace=True)
-    merged_df['confidence_ratio'].fillna(0, inplace=True)
+    merged_df['confidence_ratio'] = merged_df['smoothed_conf_attacked'] / merged_df['smoothed_conf_original']
+    merged_df['confidence_ratio'] = merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
 
     plt.figure(figsize=(10, 6))
-
-    # Plot the confidence score ratio
-    plt.plot(merged_df['frame'], merged_df['confidence_ratio'], label='Confidence Score Ratio (Corrupted/Original)',
-             linestyle='--', color='blue')
+    plt.plot(merged_df['frame'], merged_df['confidence_ratio'], label=f'Confidence Score Ratio ({comparison_label})', linestyle='--', color='blue')
     plt.axhline(y=CONFIDENCE_RATIO_LOWER_THRESHOLD, color='gray', linestyle='--')
     plt.axhline(y=CONFIDENCE_RATIO_UPPER_THRESHOLD, color='gray', linestyle='--')
 
-    # Shade attacked regions outside the thresholds
     for i in range(len(merged_df) - 1):
         start_frame = merged_df['frame'].iloc[i]
         end_frame = merged_df['frame'].iloc[i + 1]
         ratio_value = merged_df['confidence_ratio'].iloc[i]
+        color = 'lightcoral' if ratio_value < CONFIDENCE_RATIO_LOWER_THRESHOLD or ratio_value > CONFIDENCE_RATIO_UPPER_THRESHOLD else 'lightgreen'
+        plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
 
-        if ratio_value < CONFIDENCE_RATIO_LOWER_THRESHOLD or ratio_value > CONFIDENCE_RATIO_UPPER_THRESHOLD:
-            plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)  # Attacked Region
-        else:
-            plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)  # Non-Attacked Region
-
-    # Custom legend handles
-    attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
-    non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
-    plt.legend(handles=[plt.Line2D([0], [0], color='blue', linestyle='--', label='Confidence Score Ratio'),
-                        attacked_patch, non_attacked_patch])
-
+    plt.legend()
     plt.xlabel('Frame Number')
     plt.ylabel('Confidence Score Ratio')
-    plt.title('YOLO Confidence Score Ratio (Smoothed)')
+    plt.title(f'YOLO Confidence Score Ratio (Smoothed) ({comparison_label})')
     plt.grid(True)
     plt.savefig(output_path)
     plt.show()
+
 
 
 def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207):
@@ -373,27 +356,38 @@ if __name__ == "__main__":
     df_attacked_318 = pd.read_csv(attacked_318_log_file_path)
     df_attacked_8207 = pd.read_csv(attacked_8207_log_file_path)
 
-    df_weighted_conf = calculate_weighted_confidence(df_original, df_attacked_318)
-    df_weighted_conf.to_csv('output_logs/weighted_confidence_scores.csv', index=False)
+    # Weighted Confidence Calculations and Plots
+    df_weighted_conf_318 = calculate_weighted_confidence(df_original, df_attacked_318)
+    df_weighted_conf_318.to_csv('output_logs/weighted_confidence_scores_318.csv', index=False)
+    plot_weighted_confidence(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", "output_plots/weighted_confidence_comparison_318.png")
 
-    plot_weighted_confidence(df_weighted_conf)
+    df_weighted_conf_8207 = calculate_weighted_confidence(df_original, df_attacked_8207)
+    df_weighted_conf_8207.to_csv('output_logs/weighted_confidence_scores_8207.csv', index=False)
+    plot_weighted_confidence(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", "output_plots/weighted_confidence_comparison_8207.png")
 
-    # Calculate detection rates per frame for original and corrupted videos
+    # Detection Ratio Calculations and Plots
+    # 3.18% Loss
     all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_attacked_318['frame'].max()) + 1)})
     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
-    df_corrupted_detections = df_attacked_318.groupby('frame')['confidence'].count().reset_index(name='corrupted_detections')
-    # Merge with all_frames to ensure all frames are accounted for
-    detection_rates = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
-    detection_rates = detection_rates.merge(df_corrupted_detections, on='frame', how='left').fillna(0)
-    # Calculate detection ratio (corrupted / original) and handle division by zero
-    detection_rates['detection_ratio'] = detection_rates['corrupted_detections'] / detection_rates['original_detections']
-    detection_rates['detection_ratio'] = detection_rates['detection_ratio'].replace([float('inf'), -float('inf')], 0)
-    detection_rates['detection_ratio'] = detection_rates['detection_ratio'].fillna(0)
+    df_attacked_318_detections = df_attacked_318.groupby('frame')['confidence'].count().reset_index(name='attacked_318_detections')
+    detection_rates_318 = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+    detection_rates_318 = detection_rates_318.merge(df_attacked_318_detections, on='frame', how='left').fillna(0)
+    detection_rates_318['detection_ratio'] = detection_rates_318['attacked_318_detections'] / detection_rates_318['original_detections']
+    detection_rates_318['detection_ratio'] = detection_rates_318['detection_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+    plot_detection_ratio(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", "output_plots/detection_ratio_comparison_318.png")
 
-    plot_detection_ratio(detection_rates)
+    # 82.07% Loss
+    all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_attacked_8207['frame'].max()) + 1)})
+    df_attacked_8207_detections = df_attacked_8207.groupby('frame')['confidence'].count().reset_index( name='attacked_8207_detections')
+    detection_rates_8207 = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+    detection_rates_8207 = detection_rates_8207.merge(df_attacked_8207_detections, on='frame', how='left').fillna(0)
+    detection_rates_8207['detection_ratio'] = detection_rates_8207['attacked_8207_detections'] / detection_rates_8207[ 'original_detections']
+    detection_rates_8207['detection_ratio'] = detection_rates_8207['detection_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+    plot_detection_ratio(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", "output_plots/detection_ratio_comparison_8207.png")
 
-    smooth_and_plot_confidence_with_ratio(df_original, df_attacked_318, window_size=10)
-
+    # Confidence Ratio Calculations and Plots
+    smooth_and_plot_confidence_with_ratio(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_318.png")
+    smooth_and_plot_confidence_with_ratio(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_8207.png")
 
     plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207)
     plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207)
