@@ -3,14 +3,14 @@ from ultralytics import YOLO
 import matplotlib.pyplot as plt
 import pandas as pd
 import matplotlib.patches as mpatches
+import numpy as np
 
 
-# Define thresholds for detection ratio and confidence ratio
 DETECTION_RATIO_LOWER_THRESHOLD = 0.99
 DETECTION_RATIO_UPPER_THRESHOLD = 1.01
 CONFIDENCE_RATIO_LOWER_THRESHOLD = 0.99
 CONFIDENCE_RATIO_UPPER_THRESHOLD = 1.01
-WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER = 1.5  # Assume frames with confidence >= 1.5 * mean are non-attacked
+WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER = 1.5
 
 def process_video(input_video_path, output_video_path, log_file):
     cap = cv2.VideoCapture(input_video_path)
@@ -91,36 +91,150 @@ def calculate_weighted_confidence(df_original, df_corrupted):
     return merged_df
 
 
+# def plot_weighted_confidence(df_original, df_attacked, comparison_label, output_path):
+#     # Merge dataframes to align original detections with corrupted confidence
+#     df_original_grouped = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+#     df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index(name='avg_attacked_confidence')
+#     df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
+#
+#     merged_df = pd.merge(df_original_grouped, df_attacked_grouped, on='frame')
+#     merged_df = pd.merge(merged_df, df_attacked_detections, on='frame')
+#     merged_df['weighted_confidence'] = (merged_df['avg_attacked_confidence'] / merged_df['original_detections']) * merged_df['attacked_detections']
+#
+#     plt.figure(figsize=(10, 6))
+#     threshold = merged_df['weighted_confidence'].mean() * WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER
+#
+#     # Plot the weighted confidence with horizontal shading for attacked regions
+#     plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label=f'Weighted Confidence ({comparison_label})', marker='o', color='blue')
+#     plt.axhline(y=threshold, color='gray', linestyle='--')
+#
+#     # Shade regions horizontally based on threshold
+#     for i in range(len(merged_df) - 1):
+#         start_frame = merged_df['frame'].iloc[i]
+#         end_frame = merged_df['frame'].iloc[i + 1]
+#         if merged_df['weighted_confidence'].iloc[i] < threshold:
+#             plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)
+#         else:
+#             plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)
+#
+#     attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
+#     non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
+#     plt.legend(handles=[plt.Line2D([0], [0], color='blue', label=f'Weighted Confidence ({comparison_label})'), attacked_patch, non_attacked_patch])
+#
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Weighted Confidence')
+#     plt.title(f'YOLO Weighted Confidence Over Frames ({comparison_label})')
+#     plt.grid(True)
+#     plt.savefig(output_path)
+#     plt.show()
+
+
+# def plot_weighted_confidence(df_original, df_attacked, comparison_label, output_path):
+#     # Merge dataframes to align original detections with attacked confidence
+#     df_original_grouped = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+#     df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index(name='avg_attacked_confidence')
+#     df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
+#
+#     # Merge all relevant data
+#     merged_df = pd.merge(df_original_grouped, df_attacked_grouped, on='frame')
+#     merged_df = pd.merge(merged_df, df_attacked_detections, on='frame')
+#
+#     # Calculate weighted confidence
+#     merged_df['weighted_confidence'] = (merged_df['avg_attacked_confidence'] / merged_df['original_detections']) * \
+#                                        merged_df['attacked_detections']
+#
+#     plt.figure(figsize=(10, 6))
+#
+#     # Define threshold for shading regions
+#     threshold = merged_df['weighted_confidence'].mean() * WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER
+#
+#     # Plot the weighted confidence with a thinner line and markers at each point
+#     plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label=f'Weighted Confidence ({comparison_label})',
+#              marker='o', color='blue', linestyle='-', linewidth=1, markersize=4)
+#
+#     # Draw the threshold line
+#     plt.axhline(y=threshold, color='gray', linestyle='--')
+#
+#     # Shade regions based on whether weighted confidence is above or below threshold
+#     for i in range(len(merged_df) - 1):
+#         start_frame = merged_df['frame'].iloc[i]
+#         end_frame = merged_df['frame'].iloc[i + 1]
+#         confidence_value = merged_df['weighted_confidence'].iloc[i]
+#
+#         # Determine color for shading based on threshold
+#         color = 'lightcoral' if confidence_value < threshold else 'lightgreen'
+#         plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
+#
+#     # Custom legend for attacked and non-attacked regions
+#     attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
+#     non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
+#     plt.legend(
+#         handles=[plt.Line2D([0], [0], color='blue', label=f'Weighted Confidence ({comparison_label})', marker='o'),
+#                  attacked_patch, non_attacked_patch])
+#
+#     # Set labels, title, and save plot
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Weighted Confidence')
+#     plt.title(f'YOLO Weighted Confidence Over Frames ({comparison_label})')
+#     plt.grid(True)
+#     plt.savefig(output_path)
+#     plt.show()
+
+
 def plot_weighted_confidence(df_original, df_attacked, comparison_label, output_path):
-    # Merge dataframes to align original detections with corrupted confidence
+    # Group data for original and attacked frames
     df_original_grouped = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
     df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index(name='avg_attacked_confidence')
     df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
 
-    merged_df = pd.merge(df_original_grouped, df_attacked_grouped, on='frame')
-    merged_df = pd.merge(merged_df, df_attacked_detections, on='frame')
-    merged_df['weighted_confidence'] = (merged_df['avg_attacked_confidence'] / merged_df['original_detections']) * merged_df['attacked_detections']
+    # Merge all data
+    merged_df = pd.merge(df_original_grouped, df_attacked_grouped, on='frame', how='outer')
+    merged_df = pd.merge(merged_df, df_attacked_detections, on='frame', how='outer')
+    merged_df = merged_df.sort_values(by='frame').reset_index(drop=True)
+
+    # Fill missing values for frames with no detections
+    merged_df['original_detections'].fillna(0, inplace=True)
+    merged_df['avg_attacked_confidence'].fillna(0, inplace=True)
+    merged_df['attacked_detections'].fillna(0, inplace=True)
+
+    # Calculate weighted confidence score, setting it to 0 when there are no detections in the attacked video
+    merged_df['weighted_confidence'] = np.where(
+        merged_df['original_detections'] > 0,
+        (merged_df['avg_attacked_confidence'] / merged_df['original_detections']) * merged_df['attacked_detections'],
+        0
+    )
 
     plt.figure(figsize=(10, 6))
+
+    # Define threshold
     threshold = merged_df['weighted_confidence'].mean() * WEIGHTED_CONFIDENCE_THRESHOLD_MULTIPLIER
 
-    # Plot the weighted confidence with horizontal shading for attacked regions
-    plt.plot(merged_df['frame'], merged_df['weighted_confidence'], label=f'Weighted Confidence ({comparison_label})', marker='o', color='blue')
+    # Plot using `plt.step` with a drop to zero for frames with no detections
+    plt.step(merged_df['frame'], merged_df['weighted_confidence'], label=f'Weighted Confidence ({comparison_label})',
+             where='post', linestyle='-', color='blue', linewidth=1, markersize=4, marker='o')
+
+    # Draw the threshold line
     plt.axhline(y=threshold, color='gray', linestyle='--')
 
-    # Shade regions horizontally based on threshold
+    # Shade regions based on threshold
     for i in range(len(merged_df) - 1):
         start_frame = merged_df['frame'].iloc[i]
         end_frame = merged_df['frame'].iloc[i + 1]
-        if merged_df['weighted_confidence'].iloc[i] < threshold:
-            plt.axvspan(start_frame, end_frame, color='lightcoral', alpha=0.3)
-        else:
-            plt.axvspan(start_frame, end_frame, color='lightgreen', alpha=0.3)
+        confidence_value = merged_df['weighted_confidence'].iloc[i]
 
+        # Determine color based on whether the value is above or below the threshold
+        color = 'lightcoral' if confidence_value < threshold else 'lightgreen'
+        plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
+
+    # Custom legend for shaded regions
     attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
     non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
-    plt.legend(handles=[plt.Line2D([0], [0], color='blue', label=f'Weighted Confidence ({comparison_label})'), attacked_patch, non_attacked_patch])
+    plt.legend(handles=[
+        plt.Line2D([0], [0], color='blue', label=f'Weighted Confidence ({comparison_label})', marker='o'),
+        attacked_patch, non_attacked_patch
+    ])
 
+    # Set labels and title
     plt.xlabel('Frame Number')
     plt.ylabel('Weighted Confidence')
     plt.title(f'YOLO Weighted Confidence Over Frames ({comparison_label})')
@@ -165,39 +279,101 @@ def plot_detection_ratio(df_original, df_attacked, comparison_label, output_path
 
 
 
-def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_label, window_size=10, output_path='output_plots/confidence_scores_ratio_comparison.png'):
+# def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_label, window_size=10, output_path='output_plots/confidence_scores_ratio_comparison.png'):
+#     def smooth_data(data, window_size):
+#         return data.rolling(window=window_size, min_periods=1).mean()
+#
+#     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
+#     df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index()
+#     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
+#     df_attacked_grouped['smoothed_conf'] = smooth_data(df_attacked_grouped['confidence'], window_size)
+#     merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']], df_attacked_grouped[['frame', 'smoothed_conf']], on='frame', suffixes=('_original', '_attacked'))
+#
+#     merged_df['confidence_ratio'] = merged_df['smoothed_conf_attacked'] / merged_df['smoothed_conf_original']
+#     merged_df['confidence_ratio'] = merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+#
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(merged_df['frame'], merged_df['confidence_ratio'], label=f'Confidence Score Ratio ({comparison_label})', linestyle='--', color='blue')
+#     plt.axhline(y=CONFIDENCE_RATIO_LOWER_THRESHOLD, color='gray', linestyle='--')
+#     plt.axhline(y=CONFIDENCE_RATIO_UPPER_THRESHOLD, color='gray', linestyle='--')
+#
+#     for i in range(len(merged_df) - 1):
+#         start_frame = merged_df['frame'].iloc[i]
+#         end_frame = merged_df['frame'].iloc[i + 1]
+#         ratio_value = merged_df['confidence_ratio'].iloc[i]
+#         color = 'lightcoral' if ratio_value < CONFIDENCE_RATIO_LOWER_THRESHOLD or ratio_value > CONFIDENCE_RATIO_UPPER_THRESHOLD else 'lightgreen'
+#         plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
+#
+#     plt.legend()
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Confidence Score Ratio')
+#     plt.title(f'YOLO Confidence Score Ratio (Smoothed) ({comparison_label})')
+#     plt.grid(True)
+#     plt.savefig(output_path)
+#     plt.show()
+
+
+def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_label, window_size=10,
+                                          output_path='output_plots/confidence_scores_ratio_comparison.png'):
     def smooth_data(data, window_size):
         return data.rolling(window=window_size, min_periods=1).mean()
 
+    # Group by frame and calculate mean confidence for each frame
     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
     df_attacked_grouped = df_attacked.groupby('frame')['confidence'].mean().reset_index()
+
+    # Apply smoothing
     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
     df_attacked_grouped['smoothed_conf'] = smooth_data(df_attacked_grouped['confidence'], window_size)
-    merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']], df_attacked_grouped[['frame', 'smoothed_conf']], on='frame', suffixes=('_original', '_attacked'))
 
+    # Merge on frame to align original and attacked data
+    merged_df = pd.merge(df_original_grouped[['frame', 'smoothed_conf']],
+                         df_attacked_grouped[['frame', 'smoothed_conf']],
+                         on='frame', suffixes=('_original', '_attacked'), how='outer').sort_values(by='frame')
+
+    # Set NaN for frames with no detections in attacked video to zero
+    merged_df['smoothed_conf_attacked'].fillna(0, inplace=True)
+
+    # Calculate confidence score ratio
     merged_df['confidence_ratio'] = merged_df['smoothed_conf_attacked'] / merged_df['smoothed_conf_original']
-    merged_df['confidence_ratio'] = merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+    merged_df['confidence_ratio'].replace([float('inf'), -float('inf')], 0, inplace=True)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(merged_df['frame'], merged_df['confidence_ratio'], label=f'Confidence Score Ratio ({comparison_label})', linestyle='--', color='blue')
+
+    # Plot with a thinner dashed line and add dots at each point
+    plt.step(merged_df['frame'], merged_df['confidence_ratio'],
+             label=f'Confidence Score Ratio ({comparison_label})', where='post', linestyle='--', linewidth=1,
+             color='blue')
+    plt.scatter(merged_df['frame'], merged_df['confidence_ratio'], color='blue', s=10)  # Dots for detections
+
+    # Draw threshold lines
     plt.axhline(y=CONFIDENCE_RATIO_LOWER_THRESHOLD, color='gray', linestyle='--')
     plt.axhline(y=CONFIDENCE_RATIO_UPPER_THRESHOLD, color='gray', linestyle='--')
 
+    # Shade areas for detected interference
     for i in range(len(merged_df) - 1):
         start_frame = merged_df['frame'].iloc[i]
         end_frame = merged_df['frame'].iloc[i + 1]
         ratio_value = merged_df['confidence_ratio'].iloc[i]
         color = 'lightcoral' if ratio_value < CONFIDENCE_RATIO_LOWER_THRESHOLD or ratio_value > CONFIDENCE_RATIO_UPPER_THRESHOLD else 'lightgreen'
+
+        # Shade regions, keeping the gap at zero when no detections are present
         plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
 
-    plt.legend()
+    # Custom legend handles for shading
+    attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
+    non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
+    plt.legend(handles=[plt.Line2D([0], [0], linestyle='--', linewidth=1, color='blue',
+                                   label=f'Confidence Score Ratio ({comparison_label})'),
+                        attacked_patch, non_attacked_patch])
+
+    # Set labels, title, and legend
     plt.xlabel('Frame Number')
     plt.ylabel('Confidence Score Ratio')
     plt.title(f'YOLO Confidence Score Ratio (Smoothed) ({comparison_label})')
     plt.grid(True)
     plt.savefig(output_path)
     plt.show()
-
 
 
 def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207):
@@ -331,21 +507,29 @@ if __name__ == "__main__":
     print("Model Loaded Successfuly")
 
     # Paths for each video
-    original_video_path = 'data/video_0.mp4'
-    attacked_video_318_path = 'data/video_318.mp4'
-    attacked_video_8207_path = 'data/video_8207.mp4'
+    # original_video_path = 'data/video_0.mp4'
+    # attacked_video_318_path = 'data/video_318.mp4'
+    # attacked_video_8207_path = 'data/video_8207.mp4'
+
+    original_video_path = 'data/video2_0.mp4'
+    attacked_video_111_path = 'data/video2_111.mp4'
+    attacked_video_318_path = 'data/video2_318.mp4'
+    attacked_video_8207_path = 'data/video2_8207.mp4'
 
     # Output paths for each processed video and log
     original_output_video_path = 'output/output_original_video.mp4'
+    attacked_111_output_video_path = 'output/output_attacked_video_111.mp4'
     attacked_318_output_video_path = 'output/output_attacked_video_318.mp4'
     attacked_8207_output_video_path = 'output/output_attacked_video_8207.mp4'
 
     original_log_file_path = 'output_logs/logs_original.csv'
+    attacked_111_log_file_path = 'output_logs/logs_attacked_111.csv'
     attacked_318_log_file_path = 'output_logs/logs_attacked_318.csv'
     attacked_8207_log_file_path = 'output_logs/logs_attacked_8207.csv'
 
     # Process each video
     process_video(original_video_path, original_output_video_path, original_log_file_path)
+    process_video(attacked_video_111_path, attacked_111_output_video_path, attacked_111_log_file_path)
     process_video(attacked_video_318_path, attacked_318_output_video_path, attacked_318_log_file_path)
     process_video(attacked_video_8207_path, attacked_8207_output_video_path, attacked_8207_log_file_path)
 
@@ -353,10 +537,15 @@ if __name__ == "__main__":
 
     # Load the logs as DataFrames
     df_original = pd.read_csv(original_log_file_path)
+    df_attacked_111 = pd.read_csv(attacked_111_log_file_path)
     df_attacked_318 = pd.read_csv(attacked_318_log_file_path)
     df_attacked_8207 = pd.read_csv(attacked_8207_log_file_path)
 
     # Weighted Confidence Calculations and Plots
+    df_weighted_conf_318 = calculate_weighted_confidence(df_original, df_attacked_318)
+    df_weighted_conf_318.to_csv('output_logs/weighted_confidence_scores_318.csv', index=False)
+    plot_weighted_confidence(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", "output_plots/weighted_confidence_comparison_318.png")
+
     df_weighted_conf_318 = calculate_weighted_confidence(df_original, df_attacked_318)
     df_weighted_conf_318.to_csv('output_logs/weighted_confidence_scores_318.csv', index=False)
     plot_weighted_confidence(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", "output_plots/weighted_confidence_comparison_318.png")
@@ -366,6 +555,18 @@ if __name__ == "__main__":
     plot_weighted_confidence(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", "output_plots/weighted_confidence_comparison_8207.png")
 
     # Detection Ratio Calculations and Plots
+
+    # 1.11% Loss
+    # 3.18% Loss
+    all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_attacked_111['frame'].max()) + 1)})
+    df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
+    df_attacked_111_detections = df_attacked_111.groupby('frame')['confidence'].count().reset_index(name='attacked_111_detections')
+    detection_rates_111 = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+    detection_rates_111 = detection_rates_111.merge(df_attacked_111_detections, on='frame', how='left').fillna(0)
+    detection_rates_111['detection_ratio'] = detection_rates_111['attacked_111_detections'] / detection_rates_111['original_detections']
+    detection_rates_111['detection_ratio'] = detection_rates_111['detection_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
+    plot_detection_ratio(df_original, df_attacked_111, "Original vs. Attacked (1.11% Loss)", "output_plots/detection_ratio_comparison_111.png")
+
     # 3.18% Loss
     all_frames = pd.DataFrame({'frame': range(max(df_original['frame'].max(), df_attacked_318['frame'].max()) + 1)})
     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
@@ -386,6 +587,7 @@ if __name__ == "__main__":
     plot_detection_ratio(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", "output_plots/detection_ratio_comparison_8207.png")
 
     # Confidence Ratio Calculations and Plots
+    smooth_and_plot_confidence_with_ratio(df_original, df_attacked_111, "Original vs. Attacked (1.11% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_111.png")
     smooth_and_plot_confidence_with_ratio(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_318.png")
     smooth_and_plot_confidence_with_ratio(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_8207.png")
 
