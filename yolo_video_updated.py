@@ -251,32 +251,50 @@ def plot_detection_ratio(df_original, df_attacked, comparison_label, output_path
 
     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='original_detections')
     df_attacked_detections = df_attacked.groupby('frame')['confidence'].count().reset_index(name='attacked_detections')
+
+    # Merge with all_frames to ensure all frames are accounted for
     detection_rates = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
     detection_rates = detection_rates.merge(df_attacked_detections, on='frame', how='left').fillna(0)
+
+    # Calculate detection ratio, handling division by zero
     detection_rates['detection_ratio'] = detection_rates['attacked_detections'] / detection_rates['original_detections']
     detection_rates['detection_ratio'] = detection_rates['detection_ratio'].replace([float('inf'), -float('inf')], 0).fillna(0)
 
     plt.figure(figsize=(10, 6))
-    plt.plot(detection_rates['frame'], detection_rates['detection_ratio'], label=f'Detection Rate Ratio ({comparison_label})', marker='o', linestyle='--', color='blue')
+
+    # Plot the detection rate ratio with markers
+    plt.plot(detection_rates['frame'], detection_rates['detection_ratio'], label=f'Detection Rate Ratio ({comparison_label})',
+             marker='o', linestyle='--', color='blue')
+
+    # Draw the threshold lines
     plt.axhline(y=DETECTION_RATIO_LOWER_THRESHOLD, color='gray', linestyle='--')
     plt.axhline(y=DETECTION_RATIO_UPPER_THRESHOLD, color='gray', linestyle='--')
 
-    # Shade attacked regions outside the thresholds
+    # Shade regions based on whether detection ratio is within thresholds
     for i in range(len(detection_rates) - 1):
         start_frame = detection_rates['frame'].iloc[i]
         end_frame = detection_rates['frame'].iloc[i + 1]
         ratio_value = detection_rates['detection_ratio'].iloc[i]
+
+        # Color based on detection ratio threshold
         color = 'lightcoral' if ratio_value < DETECTION_RATIO_LOWER_THRESHOLD or ratio_value > DETECTION_RATIO_UPPER_THRESHOLD else 'lightgreen'
         plt.axvspan(start_frame, end_frame, color=color, alpha=0.3)
 
-    plt.legend()
+    # Custom legend for the regions
+    attacked_patch = mpatches.Patch(color='lightcoral', label='Attacked Region')
+    non_attacked_patch = mpatches.Patch(color='lightgreen', label='Non-Attacked Region')
+    plt.legend(handles=[
+        plt.Line2D([0], [0], color='blue', linestyle='--', marker='o', label=f'Detection Rate Ratio ({comparison_label})'),
+        attacked_patch, non_attacked_patch
+    ])
+
+    # Set labels, title, and save the plot
     plt.xlabel('Frame Number')
     plt.ylabel('Detection Rate Ratio')
     plt.title(f'Detection Rate Ratio per Frame ({comparison_label})')
     plt.grid(True)
     plt.savefig(output_path)
     plt.show()
-
 
 
 # def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_label, window_size=10, output_path='output_plots/confidence_scores_ratio_comparison.png'):
@@ -376,17 +394,131 @@ def smooth_and_plot_confidence_with_ratio(df_original, df_attacked, comparison_l
     plt.show()
 
 
-def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207):
+# def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207):
+#     # Calculate detections per frame for each video
+#     df_original['detections'] = df_original.groupby('frame')['confidence'].count()
+#     df_attacked_318['detections'] = df_attacked_318.groupby('frame')['confidence'].count()
+#     df_attacked_8207['detections'] = df_attacked_8207.groupby('frame')['confidence'].count()
+#
+#     # Plot histograms
+#     plt.figure(figsize=(10, 6))
+#     plt.hist(df_original['detections'], bins=15, alpha=0.5, label='Original Video', color='green')
+#     plt.hist(df_attacked_318['detections'], bins=15, alpha=0.5, label='Attacked Video (3.18% Loss)', color='orange')
+#     plt.hist(df_attacked_8207['detections'], bins=15, alpha=0.5, label='Attacked Video (82.07% Loss)', color='red')
+#
+#     # Set labels and title
+#     plt.xlabel('Number of Detections per Frame')
+#     plt.ylabel('Frequency')
+#     plt.title('Histogram of Detections per Frame')
+#     plt.legend()
+#     plt.savefig('output_plots/detections_histogram_all_videos.png')
+#     print("Detections histogram saved as 'output_plots/detections_histogram_all_videos.png'")
+#
+#
+# def plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207):
+#     plt.figure(figsize=(10, 6))
+#
+#     # Plot histograms for confidence scores of each video
+#     plt.hist(df_original['confidence'], bins=30, alpha=0.5, label='Original Video', color='green')
+#     plt.hist(df_attacked_318['confidence'], bins=30, alpha=0.5, label='Attacked Video (3.18% Loss)', color='orange')
+#     plt.hist(df_attacked_8207['confidence'], bins=30, alpha=0.5, label='Attacked Video (82.07% Loss)', color='red')
+#
+#     # Set labels and title
+#     plt.xlabel('Confidence Score')
+#     plt.ylabel('Frequency')
+#     plt.title('Histogram of Confidence Scores')
+#     plt.legend()
+#     plt.savefig('output_plots/confidence_histogram_all_videos.png')
+#     print("Confidence score histogram saved as 'output_plots/confidence_histogram_all_videos.png'")
+#
+#
+# def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, window_size=10,
+#                                output_path='output_plots/confidence_scores_comparison_all_videos.png'):
+#     def smooth_data(data, window_size):
+#         return data.rolling(window=window_size, min_periods=1).mean()
+#
+#     # Group by frame and calculate mean confidence for each frame
+#     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
+#     df_attacked_318_grouped = df_attacked_318.groupby('frame')['confidence'].mean().reset_index()
+#     df_attacked_8207_grouped = df_attacked_8207.groupby('frame')['confidence'].mean().reset_index()
+#
+#     # Smooth the confidence scores
+#     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
+#     df_attacked_318_grouped['smoothed_conf'] = smooth_data(df_attacked_318_grouped['confidence'], window_size)
+#     df_attacked_8207_grouped['smoothed_conf'] = smooth_data(df_attacked_8207_grouped['confidence'], window_size)
+#
+#     # Plotting the smoothed confidence scores for each video
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df_original_grouped['frame'], df_original_grouped['smoothed_conf'],
+#              label='Original Video', marker='o', markersize=4, alpha=0.7, linewidth=1.5, color='green')
+#     plt.plot(df_attacked_318_grouped['frame'], df_attacked_318_grouped['smoothed_conf'],
+#              label='Attacked Video (3.18% Loss)', marker='s', markersize=4, alpha=0.7, linewidth=1.5, color='orange')
+#     plt.plot(df_attacked_8207_grouped['frame'], df_attacked_8207_grouped['smoothed_conf'],
+#              label='Attacked Video (82.07% Loss)', marker='x', markersize=4, alpha=0.7, linewidth=1.5, color='red')
+#
+#     # Set labels, title, and legend
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Confidence Score')
+#     plt.title('YOLO Confidence Scores Comparison (Smoothed)')
+#     plt.legend()
+#     plt.grid(True)
+#
+#     # Save the plot
+#     plt.savefig(output_path)
+#     print(f"Confidence score comparison plot saved as '{output_path}'")
+#
+#
+# def plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacked_8207,
+#                                         output_path='output_plots/number_of_detections_per_frame_all_videos.png'):
+#     # Create a DataFrame with all frame numbers to ensure consistent plotting range
+#     max_frame = max(df_original['frame'].max(), df_attacked_318['frame'].max(), df_attacked_8207['frame'].max())
+#     all_frames = pd.DataFrame({'frame': range(max_frame + 1)})
+#
+#     # Calculate detections per frame for each video
+#     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='detections')
+#     df_attacked_318_detections = df_attacked_318.groupby('frame')['confidence'].count().reset_index(name='detections')
+#     df_attacked_8207_detections = df_attacked_8207.groupby('frame')['confidence'].count().reset_index(name='detections')
+#
+#     # Merge with all_frames to ensure all frames are accounted for
+#     df_original_detections = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
+#     df_attacked_318_detections = all_frames.merge(df_attacked_318_detections, on='frame', how='left').fillna(0)
+#     df_attacked_8207_detections = all_frames.merge(df_attacked_8207_detections, on='frame', how='left').fillna(0)
+#
+#     # Plot the number of detections per frame for each video
+#     plt.figure(figsize=(10, 6))
+#     plt.plot(df_original_detections['frame'], df_original_detections['detections'],
+#              label='Original Video Detections', marker='o', markersize=3, color="green")
+#     plt.plot(df_attacked_318_detections['frame'], df_attacked_318_detections['detections'],
+#              label='Attacked Video Detections (3.18% Loss)', marker='s', markersize=3, color="orange")
+#     plt.plot(df_attacked_8207_detections['frame'], df_attacked_8207_detections['detections'],
+#              label='Attacked Video Detections (82.07% Loss)', marker='x', markersize=3, color="red")
+#
+#     # Set labels, title, and legend
+#     plt.xlabel('Frame Number')
+#     plt.ylabel('Number of Detections')
+#     plt.title('Number of Detections per Frame')
+#     plt.legend()
+#     plt.grid(True)
+#
+#     # Save the plot
+#     plt.savefig(output_path)
+#     print(f"Number of detections per frame plot saved as '{output_path}'")
+
+
+
+def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207, df_attacked_111):
     # Calculate detections per frame for each video
     df_original['detections'] = df_original.groupby('frame')['confidence'].count()
     df_attacked_318['detections'] = df_attacked_318.groupby('frame')['confidence'].count()
     df_attacked_8207['detections'] = df_attacked_8207.groupby('frame')['confidence'].count()
+    df_attacked_111['detections'] = df_attacked_111.groupby('frame')['confidence'].count()
 
     # Plot histograms
     plt.figure(figsize=(10, 6))
     plt.hist(df_original['detections'], bins=15, alpha=0.5, label='Original Video', color='green')
     plt.hist(df_attacked_318['detections'], bins=15, alpha=0.5, label='Attacked Video (3.18% Loss)', color='orange')
     plt.hist(df_attacked_8207['detections'], bins=15, alpha=0.5, label='Attacked Video (82.07% Loss)', color='red')
+    plt.hist(df_attacked_111['detections'], bins=15, alpha=0.5, label='Attacked Video (11.1% Loss)', color='purple')
 
     # Set labels and title
     plt.xlabel('Number of Detections per Frame')
@@ -397,13 +529,14 @@ def plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207):
     print("Detections histogram saved as 'output_plots/detections_histogram_all_videos.png'")
 
 
-def plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207):
+def plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207, df_attacked_111):
     plt.figure(figsize=(10, 6))
 
     # Plot histograms for confidence scores of each video
     plt.hist(df_original['confidence'], bins=30, alpha=0.5, label='Original Video', color='green')
     plt.hist(df_attacked_318['confidence'], bins=30, alpha=0.5, label='Attacked Video (3.18% Loss)', color='orange')
     plt.hist(df_attacked_8207['confidence'], bins=30, alpha=0.5, label='Attacked Video (82.07% Loss)', color='red')
+    plt.hist(df_attacked_111['confidence'], bins=30, alpha=0.5, label='Attacked Video (11.1% Loss)', color='purple')
 
     # Set labels and title
     plt.xlabel('Confidence Score')
@@ -414,7 +547,7 @@ def plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207):
     print("Confidence score histogram saved as 'output_plots/confidence_histogram_all_videos.png'")
 
 
-def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, window_size=10,
+def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, df_attacked_111, window_size=10,
                                output_path='output_plots/confidence_scores_comparison_all_videos.png'):
     def smooth_data(data, window_size):
         return data.rolling(window=window_size, min_periods=1).mean()
@@ -423,11 +556,13 @@ def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, w
     df_original_grouped = df_original.groupby('frame')['confidence'].mean().reset_index()
     df_attacked_318_grouped = df_attacked_318.groupby('frame')['confidence'].mean().reset_index()
     df_attacked_8207_grouped = df_attacked_8207.groupby('frame')['confidence'].mean().reset_index()
+    df_attacked_111_grouped = df_attacked_111.groupby('frame')['confidence'].mean().reset_index()
 
     # Smooth the confidence scores
     df_original_grouped['smoothed_conf'] = smooth_data(df_original_grouped['confidence'], window_size)
     df_attacked_318_grouped['smoothed_conf'] = smooth_data(df_attacked_318_grouped['confidence'], window_size)
     df_attacked_8207_grouped['smoothed_conf'] = smooth_data(df_attacked_8207_grouped['confidence'], window_size)
+    df_attacked_111_grouped['smoothed_conf'] = smooth_data(df_attacked_111_grouped['confidence'], window_size)
 
     # Plotting the smoothed confidence scores for each video
     plt.figure(figsize=(10, 6))
@@ -437,6 +572,8 @@ def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, w
              label='Attacked Video (3.18% Loss)', marker='s', markersize=4, alpha=0.7, linewidth=1.5, color='orange')
     plt.plot(df_attacked_8207_grouped['frame'], df_attacked_8207_grouped['smoothed_conf'],
              label='Attacked Video (82.07% Loss)', marker='x', markersize=4, alpha=0.7, linewidth=1.5, color='red')
+    plt.plot(df_attacked_111_grouped['frame'], df_attacked_111_grouped['smoothed_conf'],
+             label='Attacked Video (11.1% Loss)', marker='d', markersize=4, alpha=0.7, linewidth=1.5, color='purple')
 
     # Set labels, title, and legend
     plt.xlabel('Frame Number')
@@ -450,21 +587,23 @@ def smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, w
     print(f"Confidence score comparison plot saved as '{output_path}'")
 
 
-def plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacked_8207,
+def plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacked_8207, df_attacked_111,
                                         output_path='output_plots/number_of_detections_per_frame_all_videos.png'):
     # Create a DataFrame with all frame numbers to ensure consistent plotting range
-    max_frame = max(df_original['frame'].max(), df_attacked_318['frame'].max(), df_attacked_8207['frame'].max())
+    max_frame = max(df_original['frame'].max(), df_attacked_318['frame'].max(), df_attacked_8207['frame'].max(), df_attacked_111['frame'].max())
     all_frames = pd.DataFrame({'frame': range(max_frame + 1)})
 
     # Calculate detections per frame for each video
     df_original_detections = df_original.groupby('frame')['confidence'].count().reset_index(name='detections')
     df_attacked_318_detections = df_attacked_318.groupby('frame')['confidence'].count().reset_index(name='detections')
     df_attacked_8207_detections = df_attacked_8207.groupby('frame')['confidence'].count().reset_index(name='detections')
+    df_attacked_111_detections = df_attacked_111.groupby('frame')['confidence'].count().reset_index(name='detections')
 
     # Merge with all_frames to ensure all frames are accounted for
     df_original_detections = all_frames.merge(df_original_detections, on='frame', how='left').fillna(0)
     df_attacked_318_detections = all_frames.merge(df_attacked_318_detections, on='frame', how='left').fillna(0)
     df_attacked_8207_detections = all_frames.merge(df_attacked_8207_detections, on='frame', how='left').fillna(0)
+    df_attacked_111_detections = all_frames.merge(df_attacked_111_detections, on='frame', how='left').fillna(0)
 
     # Plot the number of detections per frame for each video
     plt.figure(figsize=(10, 6))
@@ -474,6 +613,8 @@ def plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacke
              label='Attacked Video Detections (3.18% Loss)', marker='s', markersize=3, color="orange")
     plt.plot(df_attacked_8207_detections['frame'], df_attacked_8207_detections['detections'],
              label='Attacked Video Detections (82.07% Loss)', marker='x', markersize=3, color="red")
+    plt.plot(df_attacked_111_detections['frame'], df_attacked_111_detections['detections'],
+             label='Attacked Video Detections (11.1% Loss)', marker='d', markersize=3, color="purple")
 
     # Set labels, title, and legend
     plt.xlabel('Frame Number')
@@ -485,6 +626,8 @@ def plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacke
     # Save the plot
     plt.savefig(output_path)
     print(f"Number of detections per frame plot saved as '{output_path}'")
+
+
 
 
 # def plot_class_distribution_comparison(df_original, df_corrupted):
@@ -542,9 +685,9 @@ if __name__ == "__main__":
     df_attacked_8207 = pd.read_csv(attacked_8207_log_file_path)
 
     # Weighted Confidence Calculations and Plots
-    df_weighted_conf_318 = calculate_weighted_confidence(df_original, df_attacked_318)
-    df_weighted_conf_318.to_csv('output_logs/weighted_confidence_scores_318.csv', index=False)
-    plot_weighted_confidence(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", "output_plots/weighted_confidence_comparison_318.png")
+    df_weighted_conf_111 = calculate_weighted_confidence(df_original, df_attacked_111)
+    df_weighted_conf_111.to_csv('output_logs/weighted_confidence_scores_111.csv', index=False)
+    plot_weighted_confidence(df_original, df_attacked_111, "Original vs. Attacked (1.11% Loss)", "output_plots/weighted_confidence_comparison_111.png")
 
     df_weighted_conf_318 = calculate_weighted_confidence(df_original, df_attacked_318)
     df_weighted_conf_318.to_csv('output_logs/weighted_confidence_scores_318.csv', index=False)
@@ -591,9 +734,9 @@ if __name__ == "__main__":
     smooth_and_plot_confidence_with_ratio(df_original, df_attacked_318, "Original vs. Attacked (3.18% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_318.png")
     smooth_and_plot_confidence_with_ratio(df_original, df_attacked_8207, "Original vs. Attacked (82.07% Loss)", window_size=10,output_path="output_plots/confidence_ratio_comparison_8207.png")
 
-    plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207)
-    plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207)
-    smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, window_size=10, output_path='output_plots/confidence_scores_comparison_all_videos.png')
-    plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacked_8207, output_path='output_plots/number_of_detections_per_frame_all_videos.png')
+    plot_detections_histogram(df_original, df_attacked_318, df_attacked_8207, df_attacked_111)
+    plot_confidence_histogram(df_original, df_attacked_318, df_attacked_8207, df_attacked_111)
+    smooth_and_plot_confidence(df_original, df_attacked_318, df_attacked_8207, df_attacked_111, window_size=10, output_path='output_plots/confidence_scores_comparison_all_videos.png')
+    plot_number_of_detections_per_frame(df_original, df_attacked_318, df_attacked_8207, df_attacked_111, output_path='output_plots/number_of_detections_per_frame_all_videos.png')
 
     print("All plots generated and saved successfully.")
